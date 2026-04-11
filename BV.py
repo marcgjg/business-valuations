@@ -246,7 +246,7 @@ with tab_dcf:
     # ── Sensitivity table ──────────────────────────────────────────────────────
     st.subheader("Sensitivity Analysis — Equity Value per Share (€)")
     st.markdown("Each cell shows the implied share price for a given combination of WACC and terminal "
-                "growth rate g. Your current assumptions are **highlighted in red**.", unsafe_allow_html=True)
+                "growth rate g. The equity value per share for your current assumptions is **highlighted in red**.", unsafe_allow_html=True)
 
     wacc_range = np.arange(max(wacc - 2.5, tg_dec * 100 + 0.5), wacc + 3.0, 0.5)
     tg_range   = np.arange(max(terminal_g - 1.5, 0.0), terminal_g + 2.0, 0.5)
