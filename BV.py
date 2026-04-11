@@ -63,16 +63,21 @@ with tab_dcf:
     # ── Forecast assumptions table (full width) ────────────────────────────────
     st.subheader("Forecast Assumptions")
     st.markdown(
-        "Enter Year 1 revenue and the annual revenue growth rate for subsequent years — "
-        "revenues from Year 2 onwards are derived automatically. "
+        "Enter Year 1 revenue below, then set the annual revenue growth rate and other assumptions "
+        "for each year in the table. Revenues from Year 2 onwards are derived automatically. "
         "D&A, Capex, and NWC are expressed as a percentage of that year's revenue. "
         "ΔNWC is computed automatically as the change in NWC from the prior year "
         "(Year 0 NWC is assumed equal to Year 1 NWC, so ΔNWC in Year 1 = 0)."
     )
 
+    # ── Year 1 revenue input ───────────────────────────────────────────────────
+    rev1_col, _ = st.columns([1, 2])
+    with rev1_col:
+        rev_year1 = st.number_input("Year 1 revenue (€m):", min_value=0.0, value=500.0, step=10.0)
+
+    # ── Per-year assumptions table (Years 1–H, revenue disabled) ──────────────
     df_input = pd.DataFrame({
         "Year":            [f"Year {i}" for i in range(1, horizon + 1)],
-        "Revenue (€m)":    [500.0] + [0.0] * (horizon - 1),
         "Rev growth (%)":  [0.0] + [8.0] * (horizon - 1),
         "EBIT margin (%)": [15.0] * horizon,
         "Tax rate (%)":    [25.0] * horizon,
@@ -87,7 +92,6 @@ with tab_dcf:
         use_container_width=True,
         column_config={
             "Year":            st.column_config.TextColumn("Year", disabled=True),
-            "Revenue (€m)":    st.column_config.NumberColumn("Revenue (€m)",    min_value=0,    format="%.0f"),
             "Rev growth (%)":  st.column_config.NumberColumn("Rev growth %",    min_value=-100, max_value=100, format="%.1f"),
             "EBIT margin (%)": st.column_config.NumberColumn("EBIT margin %",   min_value=0,    max_value=100, format="%.1f"),
             "Tax rate (%)":    st.column_config.NumberColumn("Tax rate %",       min_value=0,    max_value=100, format="%.1f"),
@@ -97,8 +101,8 @@ with tab_dcf:
         },
     )
 
-    # Cascade revenues: Year 1 taken directly; Years 2–H derived from prior year × growth rate
-    revenues = [edited.iloc[0]["Revenue (€m)"]]
+    # Cascade revenues: Year 1 from number input; Years 2–H derived from prior year × growth rate
+    revenues = [rev_year1]
     for i in range(1, horizon):
         revenues.append(revenues[i - 1] * (1 + edited.iloc[i]["Rev growth (%)"] / 100))
 
@@ -109,7 +113,7 @@ with tab_dcf:
     nwc_vals = []
     dnwc_vals= []
     nopat_vals = []
-    prev_nwc = revenues[0] * edited.iloc[0]["NWC (% rev)"] / 100
+    prev_nwc = rev_year1 * edited.iloc[0]["NWC (% rev)"] / 100
     for i, row in edited.iterrows():
         rev    = revenues[i]
         ebit   = rev * row["EBIT margin (%)"] / 100
