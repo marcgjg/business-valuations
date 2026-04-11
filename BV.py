@@ -63,14 +63,17 @@ with tab_dcf:
     # ── Forecast assumptions table (full width) ────────────────────────────────
     st.subheader("Forecast Assumptions")
     st.markdown(
-        "Edit any cell. D&A, Capex, and NWC are expressed as a percentage of that year's revenue. "
+        "Enter Year 1 revenue and the annual revenue growth rate for subsequent years — "
+        "revenues from Year 2 onwards are derived automatically. "
+        "D&A, Capex, and NWC are expressed as a percentage of that year's revenue. "
         "ΔNWC is computed automatically as the change in NWC from the prior year "
         "(Year 0 NWC is assumed equal to Year 1 NWC, so ΔNWC in Year 1 = 0)."
     )
 
     df_input = pd.DataFrame({
         "Year":            [f"Year {i}" for i in range(1, horizon + 1)],
-        "Revenue (€m)":    [500 + 40 * i for i in range(1, horizon + 1)],
+        "Revenue (€m)":    [500.0] + [0.0] * (horizon - 1),
+        "Rev growth (%)":  [0.0] + [8.0] * (horizon - 1),
         "EBIT margin (%)": [15.0] * horizon,
         "Tax rate (%)":    [25.0] * horizon,
         "D&A (% rev)":     [4.0]  * horizon,
@@ -85,6 +88,7 @@ with tab_dcf:
         column_config={
             "Year":            st.column_config.TextColumn("Year", disabled=True),
             "Revenue (€m)":    st.column_config.NumberColumn("Revenue (€m)",   min_value=0,   format="%.0f"),
+            "Rev growth (%)":  st.column_config.NumberColumn("Rev growth %",   min_value=-100, max_value=100, format="%.1f"),
             "EBIT margin (%)": st.column_config.NumberColumn("EBIT margin %",  min_value=0,   max_value=100, format="%.1f"),
             "Tax rate (%)":    st.column_config.NumberColumn("Tax rate %",      min_value=0,   max_value=100, format="%.1f"),
             "D&A (% rev)":     st.column_config.NumberColumn("D&A % of rev",   min_value=0,   max_value=100, format="%.1f"),
@@ -93,11 +97,19 @@ with tab_dcf:
         },
     )
 
+    # Cascade revenues: Year 1 is taken directly; Years 2–H are derived from
+    # the previous year's revenue and that year's growth rate
+    revenues = [edited.iloc[0]["Revenue (€m)"]]
+    for i in range(1, horizon):
+        prev_rev = revenues[i - 1]
+        g        = edited.iloc[i]["Rev growth (%)"] / 100
+        revenues.append(prev_rev * (1 + g))
+
     # Compute FCFs from percent-of-sales model
     fcfs = []
-    prev_nwc = edited.iloc[0]["Revenue (€m)"] * edited.iloc[0]["NWC (% rev)"] / 100
-    for _, row in edited.iterrows():
-        rev   = row["Revenue (€m)"]
+    prev_nwc = revenues[0] * edited.iloc[0]["NWC (% rev)"] / 100
+    for i, row in edited.iterrows():
+        rev   = revenues[i]
         ebit  = rev * row["EBIT margin (%)"] / 100
         nopat = ebit * (1 - row["Tax rate (%)"] / 100)
         da    = rev * row["D&A (% rev)"]    / 100
