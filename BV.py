@@ -246,7 +246,7 @@ with tab_dcf:
     # ── Sensitivity table ──────────────────────────────────────────────────────
     st.subheader("Sensitivity Analysis — Equity Value per Share (€)")
     st.markdown("Each cell shows the implied share price for a given combination of WACC and terminal "
-                "growth rate g. Your current assumptions are **highlighted in blue**.", unsafe_allow_html=True)
+                "growth rate g. Your current assumptions are **highlighted in red**.", unsafe_allow_html=True)
 
     wacc_range = np.arange(max(wacc - 2.5, tg_dec * 100 + 0.5), wacc + 3.0, 0.5)
     tg_range   = np.arange(max(terminal_g - 1.5, 0.0), terminal_g + 2.0, 0.5)
@@ -276,7 +276,7 @@ with tab_dcf:
         styles = pd.DataFrame("", index=df.index, columns=df.columns)
         closest_row = min(range(len(tg_range)),  key=lambda i: abs(tg_range[i]  - terminal_g))
         closest_col = min(range(len(wacc_range)), key=lambda i: abs(wacc_range[i] - wacc))
-        styles.iloc[closest_row, closest_col] = "background-color: #1E3A8A; color: white; font-weight: 600;"
+        styles.iloc[closest_row, closest_col] = "background-color: #d62728; color: white; font-weight: 600;"
         return styles
 
     vmin = sens_df.min().min()
