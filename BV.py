@@ -63,35 +63,32 @@ with tab_dcf:
     # ── Forecast assumptions table (full width) ────────────────────────────────
     st.subheader("Forecast Assumptions")
     st.markdown(
-        "Enter Year 1 revenue below, then set the annual revenue growth rate and other assumptions "
-        "for each year in the table. Revenues from Year 2 onwards are derived automatically. "
+        "Enter Year 0 revenue and the annual revenue growth rate for each year. "
+        "Revenues from Year 1 onwards are derived automatically as the prior year's revenue × (1 + growth rate). "
         "D&A, Capex, and NWC are expressed as a percentage of that year's revenue. "
         "ΔNWC is computed automatically as the change in NWC from the prior year "
         "(Year 0 NWC is assumed equal to Year 1 NWC, so ΔNWC in Year 1 = 0)."
     )
 
-    # ── Year 1 revenue input ───────────────────────────────────────────────────
-    rev1_col, _ = st.columns([1, 2])
-    with rev1_col:
-        rev_year1 = st.number_input("Year 1 revenue (€m):", min_value=0.0, value=500.0, step=10.0)
-
-    # ── Per-year assumptions table (Years 1–H, revenue disabled) ──────────────
     df_input = pd.DataFrame({
-        "Year":            [f"Year {i}" for i in range(1, horizon + 1)],
-        "Rev growth (%)":  [0.0] + [8.0] * (horizon - 1),
-        "EBIT margin (%)": [15.0] * horizon,
-        "Tax rate (%)":    [25.0] * horizon,
-        "D&A (% rev)":     [4.0]  * horizon,
-        "Capex (% rev)":   [5.0]  * horizon,
-        "NWC (% rev)":     [8.0]  * horizon,
+        "Year":            ["Year 0"] + [f"Year {i}" for i in range(1, horizon + 1)],
+        "Revenue (€m)":    [500.0]   + [0.0] * horizon,
+        "Rev growth (%)":  [0.0]     + [8.0] * horizon,
+        "EBIT margin (%)": [0.0]     + [15.0] * horizon,
+        "Tax rate (%)":    [0.0]     + [25.0] * horizon,
+        "D&A (% rev)":     [0.0]     + [4.0]  * horizon,
+        "Capex (% rev)":   [0.0]     + [5.0]  * horizon,
+        "NWC (% rev)":     [8.0]     + [8.0]  * horizon,
     })
 
     edited = st.data_editor(
         df_input,
         hide_index=True,
         use_container_width=True,
+        disabled=["Year", "Rev growth (%)"] if False else ["Year"],
         column_config={
             "Year":            st.column_config.TextColumn("Year", disabled=True),
+            "Revenue (€m)":    st.column_config.NumberColumn("Revenue (€m)",    min_value=0,    format="%.0f"),
             "Rev growth (%)":  st.column_config.NumberColumn("Rev growth %",    min_value=-100, max_value=100, format="%.1f"),
             "EBIT margin (%)": st.column_config.NumberColumn("EBIT margin %",   min_value=0,    max_value=100, format="%.1f"),
             "Tax rate (%)":    st.column_config.NumberColumn("Tax rate %",       min_value=0,    max_value=100, format="%.1f"),
@@ -101,10 +98,38 @@ with tab_dcf:
         },
     )
 
-    # Cascade revenues: Year 1 from number input; Years 2–H derived from prior year × growth rate
-    revenues = [rev_year1]
-    for i in range(1, horizon):
+    # Cascade revenues: Year 0 taken directly; Years 1–H derived from prior year × growth rate
+    rev_year0 = edited.iloc[0]["Revenue (€m)"]
+    revenues  = [rev_year0]
+    for i in range(1, horizon + 1):
         revenues.append(revenues[i - 1] * (1 + edited.iloc[i]["Rev growth (%)"] / 100))
+    revenues = revenues[1:]  # drop Year 0; keep Years 1–H only for FCF calculation
+
+    # Compute FCFs from percent-of-sales model (Years 1–H only)
+    fcfs       = []
+    da_vals    = []
+    cap_vals   = []
+    nwc_vals   = []
+    dnwc_vals  = []
+    nopat_vals = []
+    prev_nwc   = rev_year0 * edited.iloc[0]["NWC (% rev)"] / 100  # Year 0 NWC => ΔNWC Year 1 = Year1 NWC - Year0 NWC
+    for i in range(1, horizon + 1):
+        row   = edited.iloc[i]
+        rev   = revenues[i - 1]
+        ebit  = rev * row["EBIT margin (%)"] / 100
+        nopat = ebit * (1 - row["Tax rate (%)"] / 100)
+        da    = rev * row["D&A (% rev)"]    / 100
+        capex = rev * row["Capex (% rev)"]  / 100
+        nwc   = rev * row["NWC (% rev)"]    / 100
+        d_nwc = nwc - prev_nwc
+        fcf   = nopat + da - capex - d_nwc
+        fcfs.append(fcf)
+        da_vals.append(da)
+        cap_vals.append(capex)
+        nwc_vals.append(nwc)
+        dnwc_vals.append(d_nwc)
+        nopat_vals.append(nopat)
+        prev_nwc = nwc
 
     # Compute FCFs and build computed results table
     fcfs     = []
