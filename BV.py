@@ -106,13 +106,19 @@ with tab_dcf:
 
             fcfs = [base_fcf * (1 + growth_rate / 100) ** t for t in range(1, horizon + 1)]
 
-        else:  # Detailed — horizon slider here, table rendered below
+        else:  # Detailed — horizon and growth sliders here, table rendered below
             horizon = st.slider(
                 "Forecast horizon, H (years):", 3, 10,
                 st.session_state.dcf_horizon, 1, key="d_horizon",
             )
+            st.subheader("Cash Flows")
+            growth_rate = st.slider(
+                "Near-term growth rate (%):", 0.0, 30.0,
+                st.session_state.dcf_growth, 0.5, key="d_growth",
+            )
             # Persist shared inputs
             st.session_state.dcf_horizon    = horizon
+            st.session_state.dcf_growth     = growth_rate
             st.session_state.dcf_wacc       = wacc
             st.session_state.dcf_terminal_g = terminal_g
             st.session_state.dcf_net_debt   = net_debt
@@ -123,7 +129,7 @@ with tab_dcf:
         st.subheader("Forecast Cash Flows (€m)")
 
         seed_base_fcf  = st.session_state.dcf_base_fcf
-        seed_growth    = st.session_state.dcf_growth
+        seed_growth    = growth_rate
         # Derive revenue for each year so that FCF matches simple mode exactly.
         # FCF = Revenue * EBIT_margin * (1 - tax) + D&A - Capex - ΔNWC
         # => Revenue = (FCF - D&A + Capex + ΔNWC) / (EBIT_margin * (1 - tax))
