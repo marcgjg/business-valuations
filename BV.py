@@ -208,35 +208,70 @@ with tab_dcf:
 
     st.markdown('<hr class="light">', unsafe_allow_html=True)
 
+    # ── Shared defaults via session state ─────────────────────────────────────
+    if "dcf_wacc"       not in st.session_state: st.session_state.dcf_wacc       = 9.0
+    if "dcf_terminal_g" not in st.session_state: st.session_state.dcf_terminal_g = 2.0
+    if "dcf_net_debt"   not in st.session_state: st.session_state.dcf_net_debt   = 500
+    if "dcf_shares"     not in st.session_state: st.session_state.dcf_shares     = 100
+    if "dcf_horizon"    not in st.session_state: st.session_state.dcf_horizon    = 5
+    if "dcf_base_fcff"  not in st.session_state: st.session_state.dcf_base_fcff  = 200
+    if "dcf_growth"     not in st.session_state: st.session_state.dcf_growth     = 8.0
+
     # ── Inputs ────────────────────────────────────────────────────────────────
     if mode == "Simple":
         col1, col2, col3 = st.columns(3)
         with col1:
             st.markdown('<p class="section-heading">Cash flows</p>', unsafe_allow_html=True)
-            base_fcff   = st.slider("Base free cash flow (€m)", 10, 2000, 200, 10)
-            growth_rate = st.slider("Near-term growth rate (%)", 0.0, 30.0, 8.0, 0.5)
-            horizon     = st.slider("Forecast horizon (years)", 3, 15, 5, 1)
+            base_fcff   = st.slider("Base free cash flow (€m)", 10, 2000,
+                                    st.session_state.dcf_base_fcff, 10, key="s_base_fcff")
+            growth_rate = st.slider("Near-term growth rate (%)", 0.0, 30.0,
+                                    st.session_state.dcf_growth, 0.5, key="s_growth")
+            horizon     = st.slider("Forecast horizon (years)", 3, 15,
+                                    st.session_state.dcf_horizon, 1, key="s_horizon")
         with col2:
             st.markdown('<p class="section-heading">Discount & terminal</p>', unsafe_allow_html=True)
-            wacc        = st.slider("WACC (%)", 3.0, 20.0, 9.0, 0.25)
-            terminal_g  = st.slider("Terminal growth rate (%)", 0.0, 5.0, 2.0, 0.25)
+            wacc        = st.slider("WACC (%)", 3.0, 20.0,
+                                    st.session_state.dcf_wacc, 0.25, key="s_wacc")
+            terminal_g  = st.slider("Terminal growth rate (%)", 0.0, 5.0,
+                                    st.session_state.dcf_terminal_g, 0.25, key="s_tg")
         with col3:
             st.markdown('<p class="section-heading">Capital structure</p>', unsafe_allow_html=True)
-            net_debt    = st.slider("Net debt (€m)", 0, 5000, 500, 50)
-            shares      = st.slider("Shares outstanding (m)", 1, 500, 100, 1)
+            net_debt    = st.slider("Net debt (€m)", 0, 5000,
+                                    st.session_state.dcf_net_debt, 50, key="s_debt")
+            shares      = st.slider("Shares outstanding (m)", 1, 500,
+                                    st.session_state.dcf_shares, 1, key="s_shares")
 
-        # Build FCFFs
+        # Persist to session state
+        st.session_state.dcf_base_fcff  = base_fcff
+        st.session_state.dcf_growth     = growth_rate
+        st.session_state.dcf_horizon    = horizon
+        st.session_state.dcf_wacc       = wacc
+        st.session_state.dcf_terminal_g = terminal_g
+        st.session_state.dcf_net_debt   = net_debt
+        st.session_state.dcf_shares     = shares
+
+        # Build FCFFs from simple inputs
+        # Derive implied revenue / margin to seed Detailed table consistently
+        # Simple mode: treat base_fcff as NOPAT proxy (EBIT*(1-t)) with D&A=0, Capex=0, ΔNWC=0
         fcffs = [base_fcff * (1 + growth_rate / 100) ** t for t in range(1, horizon + 1)]
 
     else:  # Detailed
         col1, col2 = st.columns([3, 2])
         with col1:
             st.markdown('<p class="section-heading">Forecast cash flows (€m)</p>', unsafe_allow_html=True)
-            horizon = st.slider("Forecast horizon (years)", 3, 10, 5, 1)
+            horizon = st.slider("Forecast horizon (years)", 3, 10,
+                                st.session_state.dcf_horizon, 1, key="d_horizon")
+
+            # Seed revenue from base_fcff: assume 15% EBIT margin, 25% tax, D&A=30, Capex=40, ΔNWC=10
+            # FCFF = Revenue*0.15*0.75 + 30 - 40 - 10 = Revenue*0.1125 - 20
+            # => Revenue = (base_fcff + 20) / 0.1125
+            seed_fcff    = st.session_state.dcf_base_fcff
+            seed_growth  = st.session_state.dcf_growth
+            seed_revenue = round((seed_fcff + 20) / 0.1125)
 
             df_input = pd.DataFrame({
                 "Year": [f"Year {i}" for i in range(1, horizon + 1)],
-                "Revenue": [500 + 50 * i for i in range(1, horizon + 1)],
+                "Revenue": [round(seed_revenue * (1 + seed_growth / 100) ** (i - 1)) for i in range(1, horizon + 1)],
                 "EBIT margin (%)": [15.0] * horizon,
                 "Tax rate (%)": [25.0] * horizon,
                 "D&A (€m)": [30.0] * horizon,
@@ -269,11 +304,22 @@ with tab_dcf:
 
         with col2:
             st.markdown('<p class="section-heading">Discount & terminal</p>', unsafe_allow_html=True)
-            wacc       = st.slider("WACC (%)", 3.0, 20.0, 9.0, 0.25)
-            terminal_g = st.slider("Terminal growth rate (%)", 0.0, 5.0, 2.0, 0.25)
+            wacc       = st.slider("WACC (%)", 3.0, 20.0,
+                                   st.session_state.dcf_wacc, 0.25, key="d_wacc")
+            terminal_g = st.slider("Terminal growth rate (%)", 0.0, 5.0,
+                                   st.session_state.dcf_terminal_g, 0.25, key="d_tg")
             st.markdown('<p class="section-heading">Capital structure</p>', unsafe_allow_html=True)
-            net_debt   = st.slider("Net debt (€m)", 0, 5000, 500, 50)
-            shares     = st.slider("Shares outstanding (m)", 1, 500, 100, 1)
+            net_debt   = st.slider("Net debt (€m)", 0, 5000,
+                                   st.session_state.dcf_net_debt, 50, key="d_debt")
+            shares     = st.slider("Shares outstanding (m)", 1, 500,
+                                   st.session_state.dcf_shares, 1, key="d_shares")
+
+        # Persist to session state
+        st.session_state.dcf_horizon    = horizon
+        st.session_state.dcf_wacc       = wacc
+        st.session_state.dcf_terminal_g = terminal_g
+        st.session_state.dcf_net_debt   = net_debt
+        st.session_state.dcf_shares     = shares
 
     # ── Calculations ──────────────────────────────────────────────────────────
     wacc_dec      = wacc / 100
@@ -319,7 +365,7 @@ with tab_dcf:
       </div>
       <div class="metric-card">
         <div class="metric-label">Terminal value %</div>
-        <div class="metric-value">{tv_pct:.0f}%</div>
+        <div class="metric-value">{tv_pct:.1f}%</div>
         <div class="metric-sub">Share of enterprise value</div>
       </div>
     </div>
@@ -430,12 +476,26 @@ with tab_dcf:
         styles.iloc[closest_row, closest_col] = "background-color: #185FA5; color: white; font-weight: 600;"
         return styles
 
+    # Manual blue gradient without matplotlib
+    vmin = sens_df.min().min()
+    vmax = sens_df.max().max()
+
+    def blue_gradient(val):
+        if np.isnan(val):
+            return "background-color: #f5f5f3; color: #9a9a96;"
+        t = (val - vmin) / (vmax - vmin) if vmax > vmin else 0.5
+        r = int(232 - t * (232 - 24))
+        g = int(241 - t * (241 - 95))
+        b = int(251 - t * (251 - 165))
+        text = "white" if t > 0.6 else "#1a1a18"
+        return f"background-color: rgb({r},{g},{b}); color: {text};"
+
     styled = (
         sens_df.style
         .apply(style_sens, axis=None)
         .format(lambda v: f"€{v:,.1f}" if not np.isnan(v) else "—")
+        .applymap(blue_gradient)
         .set_properties(**{"font-family": "DM Mono, monospace", "font-size": "0.8rem"})
-        .background_gradient(cmap="Blues", axis=None, vmin=sens_df.min().min(), vmax=sens_df.max().max(), gmap=sens_df)
     )
     st.dataframe(styled, use_container_width=True)
 
