@@ -52,6 +52,7 @@ with tab_dcf:
         st.subheader("Discount & Terminal")
         wacc = st.slider("WACC (%):", 3.0, 20.0, 9.0, 0.25)
         terminal_g = st.slider("Terminal growth rate, g (%):", 0.0, 5.0, 2.0, 0.25)
+        rev_year0 = st.slider("Year 0 revenue (€m):", 100, 5000, 500, 50)
 
         st.subheader("Capital Structure")
         net_debt = st.slider("Net debt (€m):", 0, 5000, 500, 50)
@@ -62,8 +63,6 @@ with tab_dcf:
 
     # ── Forecast assumptions table (full width) ────────────────────────────────
     st.subheader("Forecast Assumptions")
-
-    rev_year0 = st.slider("Year 0 revenue (€m):", 100, 5000, 500, 50)
 
     st.markdown(
         "Set the annual revenue growth rate and other assumptions for each year below. "
