@@ -27,7 +27,7 @@ with st.expander("ℹ️ About this tool", expanded=False):
     - **DCF Valuation**: discounts future free cash flows (FCF) to the firm at the WACC to derive enterprise value,
       then subtracts net debt to obtain equity value. Two input modes are available:
       - *Simple* — enter a base FCF and a near-term growth rate; the app projects FCFs forward.
-      - *Detailed* — enter revenue, EBIT margin, tax rate, D&A, capex, and change in net working capital year by year.
+      - *Detailed* — enter revenue, EBIT margin, tax rate, and D&A, Capex and NWC as a percentage of revenue year by year. ΔNWC is computed automatically as the change in NWC from the prior year.
     - **Comparable Multiples**: applies observed trading multiples (EV/EBITDA, EV/EBIT, P/E, EV/Revenue)
       from comparable companies to the target firm's financials to derive implied valuations.
 
@@ -106,19 +106,13 @@ with tab_dcf:
 
             fcfs = [base_fcf * (1 + growth_rate / 100) ** t for t in range(1, horizon + 1)]
 
-        else:  # Detailed — horizon and growth sliders here, table rendered below
+        else:  # Detailed — persist shared inputs only; table rendered below
             horizon = st.slider(
                 "Forecast horizon, H (years):", 3, 10,
                 st.session_state.dcf_horizon, 1, key="d_horizon",
             )
-            st.subheader("Cash Flows")
-            growth_rate = st.slider(
-                "Near-term growth rate (%):", 0.0, 30.0,
-                st.session_state.dcf_growth, 0.5, key="d_growth",
-            )
             # Persist shared inputs
             st.session_state.dcf_horizon    = horizon
-            st.session_state.dcf_growth     = growth_rate
             st.session_state.dcf_wacc       = wacc
             st.session_state.dcf_terminal_g = terminal_g
             st.session_state.dcf_net_debt   = net_debt
@@ -126,26 +120,34 @@ with tab_dcf:
 
     # ── Detailed table (full width, below the two columns) ────────────────────
     if mode == "Detailed":
-        st.subheader("Forecast Cash Flows (€m)")
+        st.subheader("Forecast Assumptions")
+        st.markdown(
+            "Edit any cell. Revenue grows at the near-term growth rate by default. "
+            "D&A, Capex and NWC are expressed as a percentage of revenue for that year. "
+            "ΔNWC is computed automatically as the change in NWC from the prior year "
+            "(Year 0 NWC is assumed equal to Year 1 NWC, so ΔNWC in Year 1 = 0)."
+        )
 
-        seed_base_fcf  = st.session_state.dcf_base_fcf
-        seed_growth    = growth_rate
-        # Derive revenue for each year so that FCF matches simple mode exactly.
-        # FCF = Revenue * EBIT_margin * (1 - tax) + D&A - Capex - ΔNWC
-        # => Revenue = (FCF - D&A + Capex + ΔNWC) / (EBIT_margin * (1 - tax))
-        # Using defaults: EBIT margin=15%, tax=25%, D&A=30, Capex=40, ΔNWC=10
-        # => Revenue = (FCF + 20) / 0.1125
-        simple_fcfs   = [seed_base_fcf * (1 + seed_growth / 100) ** t for t in range(1, horizon + 1)]
-        seed_revenues = [round((fcf + 20) / 0.1125) for fcf in simple_fcfs]
+        seed_base_fcf = st.session_state.dcf_base_fcf
+        seed_growth   = st.session_state.dcf_growth
+
+        # Seed Year 1 revenue from simple mode base FCF:
+        # FCF = Rev * EBIT_margin*(1-tax) + Rev*da_pct - Rev*capex_pct - ΔNWC
+        # With default margins and ΔNWC=0 in Year 1:
+        # FCF = Rev * (0.15*0.75 + 0.04 - 0.05) = Rev * 0.1125
+        # => Rev_1 = base_fcf / 0.1125
+        seed_rev_1 = round(seed_base_fcf / 0.1125)
+        seed_revs  = [round(seed_rev_1 * (1 + seed_growth / 100) ** (i - 1))
+                      for i in range(1, horizon + 1)]
 
         df_input = pd.DataFrame({
-            "Year":            [f"Year {i}" for i in range(1, horizon + 1)],
-            "Revenue":         seed_revenues,
-            "EBIT margin (%)": [15.0] * horizon,
-            "Tax rate (%)":    [25.0] * horizon,
-            "D&A (€m)":        [30.0] * horizon,
-            "Capex (€m)":      [40.0] * horizon,
-            "ΔNWC (€m)":       [10.0] * horizon,
+            "Year":             [f"Year {i}" for i in range(1, horizon + 1)],
+            "Revenue (€m)":     seed_revs,
+            "EBIT margin (%)":  [15.0] * horizon,
+            "Tax rate (%)":     [25.0] * horizon,
+            "D&A (% rev)":      [4.0]  * horizon,
+            "Capex (% rev)":    [5.0]  * horizon,
+            "NWC (% rev)":      [8.0]  * horizon,
         })
 
         edited = st.data_editor(
@@ -154,21 +156,29 @@ with tab_dcf:
             use_container_width=True,
             column_config={
                 "Year":            st.column_config.TextColumn("Year", disabled=True),
-                "Revenue":         st.column_config.NumberColumn("Revenue (€m)",    min_value=0, format="%.0f"),
-                "EBIT margin (%)": st.column_config.NumberColumn("EBIT margin %",   min_value=0, max_value=100, format="%.1f"),
-                "Tax rate (%)":    st.column_config.NumberColumn("Tax rate %",       min_value=0, max_value=100, format="%.1f"),
-                "D&A (€m)":        st.column_config.NumberColumn("D&A (€m)",         min_value=0, format="%.1f"),
-                "Capex (€m)":      st.column_config.NumberColumn("Capex (€m)",       min_value=0, format="%.1f"),
-                "ΔNWC (€m)":       st.column_config.NumberColumn("ΔNWC (€m)",        format="%.1f"),
+                "Revenue (€m)":    st.column_config.NumberColumn("Revenue (€m)",   min_value=0,   format="%.0f"),
+                "EBIT margin (%)": st.column_config.NumberColumn("EBIT margin %",  min_value=0,   max_value=100, format="%.1f"),
+                "Tax rate (%)":    st.column_config.NumberColumn("Tax rate %",      min_value=0,   max_value=100, format="%.1f"),
+                "D&A (% rev)":     st.column_config.NumberColumn("D&A % of rev",   min_value=0,   max_value=100, format="%.1f"),
+                "Capex (% rev)":   st.column_config.NumberColumn("Capex % of rev", min_value=0,   max_value=100, format="%.1f"),
+                "NWC (% rev)":     st.column_config.NumberColumn("NWC % of rev",   min_value=0,   max_value=100, format="%.1f"),
             },
         )
 
+        # Compute FCFs from percent-of-sales model
         fcfs = []
-        for _, row in edited.iterrows():
-            ebit  = row["Revenue"] * row["EBIT margin (%)"] / 100
-            nopat = ebit * (1 - row["Tax rate (%)"] / 100)
-            fcf   = nopat + row["D&A (€m)"] - row["Capex (€m)"] - row["ΔNWC (€m)"]
+        prev_nwc = edited.iloc[0]["Revenue (€m)"] * edited.iloc[0]["NWC (% rev)"] / 100  # Year 0 NWC = Year 1 NWC => ΔNWC_1 = 0
+        for i, row in edited.iterrows():
+            rev    = row["Revenue (€m)"]
+            ebit   = rev * row["EBIT margin (%)"] / 100
+            nopat  = ebit * (1 - row["Tax rate (%)"] / 100)
+            da     = rev * row["D&A (% rev)"]    / 100
+            capex  = rev * row["Capex (% rev)"]  / 100
+            nwc    = rev * row["NWC (% rev)"]    / 100
+            d_nwc  = nwc - prev_nwc
+            fcf    = nopat + da - capex - d_nwc
             fcfs.append(fcf)
+            prev_nwc = nwc
 
     # ── Calculations ───────────────────────────────────────────────────────────
     wacc_dec = wacc / 100
