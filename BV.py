@@ -2,443 +2,251 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
-from plotly.subplots import make_subplots
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Business Valuation | GOMBA Finance",
+    page_title="Business Valuation",
     page_icon="📊",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
-
-# ── Global style ───────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
-
-html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
-}
-
-/* Header */
-.app-header {
-    padding: 1.5rem 0 1rem 0;
-    border-bottom: 1px solid #e8e8e4;
-    margin-bottom: 1.5rem;
-}
-.app-header h1 {
-    font-size: 1.6rem;
-    font-weight: 600;
-    color: #1a1a18;
-    margin: 0;
-    line-height: 1.2;
-}
-.app-header p {
-    font-size: 0.875rem;
-    color: #5a5a57;
-    margin: 0.3rem 0 0 0;
-}
-.session-tag {
-    display: inline-block;
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: #185FA5;
-    background: #E6F1FB;
-    padding: 3px 10px;
-    border-radius: 20px;
-    margin-bottom: 0.5rem;
-}
-
-/* Metric cards */
-.metric-row {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 1.5rem;
-    flex-wrap: wrap;
-}
-.metric-card {
-    flex: 1;
-    min-width: 140px;
-    background: #f5f5f3;
-    border-radius: 10px;
-    padding: 1rem 1.25rem;
-}
-.metric-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: #9a9a96;
-    margin-bottom: 4px;
-}
-.metric-value {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #1a1a18;
-    font-family: 'DM Mono', monospace;
-}
-.metric-sub {
-    font-size: 0.75rem;
-    color: #5a5a57;
-    margin-top: 2px;
-}
-.metric-card.highlight {
-    background: #185FA5;
-}
-.metric-card.highlight .metric-label { color: #a8cef0; }
-.metric-card.highlight .metric-value { color: #ffffff; }
-.metric-card.highlight .metric-sub   { color: #c8dff5; }
-
-/* Section headings */
-.section-heading {
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: #9a9a96;
-    margin: 1.5rem 0 0.75rem 0;
-    padding-bottom: 0.4rem;
-    border-bottom: 1px solid #e8e8e4;
-}
-
-/* Toggle pill */
-.stRadio > div {
-    display: flex;
-    gap: 8px;
-    flex-direction: row !important;
-}
-.stRadio > div > label {
-    background: #f0f0ee;
-    border-radius: 20px;
-    padding: 4px 16px;
-    font-size: 0.82rem;
-    cursor: pointer;
-    border: 1px solid transparent;
-    transition: all 0.15s;
-}
-.stRadio > div > label:has(input:checked) {
-    background: #185FA5;
-    color: white;
-    border-color: #185FA5;
-}
-
-/* Tabs */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 4px;
-    border-bottom: 1px solid #e8e8e4;
-}
-.stTabs [data-baseweb="tab"] {
-    font-size: 0.875rem;
-    font-weight: 500;
-    padding: 8px 20px;
-    border-radius: 6px 6px 0 0;
-    color: #5a5a57;
-}
-.stTabs [aria-selected="true"] {
-    color: #185FA5 !important;
-    border-bottom: 2px solid #185FA5 !important;
-    background: transparent !important;
-}
-
-/* Sensitivity table */
-.sens-table {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.8rem;
-}
-
-/* Info box */
-.info-box {
-    background: #E6F1FB;
-    border-left: 3px solid #185FA5;
-    border-radius: 0 8px 8px 0;
-    padding: 0.75rem 1rem;
-    font-size: 0.83rem;
-    color: #1a3a5c;
-    margin-bottom: 1rem;
-}
-
-/* Divider */
-hr.light { border: none; border-top: 1px solid #e8e8e4; margin: 1.5rem 0; }
-</style>
-""", unsafe_allow_html=True)
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
-def fmt_currency(value, unit="€"):
+def fmt_currency(value):
     if abs(value) >= 1_000:
-        return f"{unit}{value/1_000:,.1f}bn"
-    return f"{unit}{value:,.1f}m"
+        return f"€{value/1_000:,.1f}bn"
+    return f"€{value:,.1f}m"
 
-def fmt_pct(value):
-    return f"{value:.1f}%"
+# ── Header ─────────────────────────────────────────────────────────────────────
+st.markdown('<h1 style="text-align: center; color: #1E3A8A;">📊 Business Valuation</h1>', unsafe_allow_html=True)
 
-PLOTLY_LAYOUT = dict(
-    font_family="DM Sans",
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(0,0,0,0)",
-    margin=dict(t=40, b=40, l=10, r=10),
-    colorway=["#185FA5", "#3B6D11", "#534AB7", "#854F0B", "#0F6E56"],
-)
+# ── About expander ─────────────────────────────────────────────────────────────
+with st.expander("ℹ️ About this tool", expanded=False):
+    st.markdown("""
+    This tool estimates the value of a firm using two widely used methods:
+    - **DCF Valuation**: discounts future free cash flows (FCF) to the firm at the WACC to derive enterprise value,
+      then subtracts net debt to obtain equity value. Two input modes are available:
+      - *Simple* — enter a base FCF and a near-term growth rate; the app projects FCFs forward.
+      - *Detailed* — enter revenue, EBIT margin, tax rate, D&A, capex, and change in net working capital year by year.
+    - **Comparable Multiples**: applies observed trading multiples (EV/EBITDA, EV/EBIT, P/E, EV/Revenue)
+      from comparable companies to the target firm's financials to derive implied valuations.
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  HEADER
-# ══════════════════════════════════════════════════════════════════════════════
-st.markdown("""
-<div class="app-header">
-  <div class="session-tag">Session 13</div>
-  <h1>Business Valuation</h1>
-  <p>Estimate the value of a firm using discounted cash flow analysis and comparable company multiples.</p>
-</div>
-""", unsafe_allow_html=True)
+    **Key formulas:**
+    - FCF = NOPAT + D&A − Capex − ΔNWC, where NOPAT = EBIT × (1 − tax rate)
+    - Terminal value (Gordon Growth): TV = FCF_{H+1} / (WACC − g)
+    - Enterprise value = PV of forecast FCFs + PV of terminal value
+    - Equity value = Enterprise value − Net debt
+    """)
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  TABS
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Tabs ───────────────────────────────────────────────────────────────────────
 tab_dcf, tab_mult = st.tabs(["📈  DCF Valuation", "🔢  Comparable Multiples"])
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
 #  TAB 1 — DCF
-# ─────────────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
 with tab_dcf:
 
-    st.markdown('<p class="section-heading">Input mode</p>', unsafe_allow_html=True)
-    mode = st.radio("", ["Simple", "Detailed"], horizontal=True, label_visibility="collapsed")
-
-    st.markdown('<hr class="light">', unsafe_allow_html=True)
-
-    # ── Shared defaults via session state ─────────────────────────────────────
+    # ── Session state defaults ─────────────────────────────────────────────────
     if "dcf_wacc"       not in st.session_state: st.session_state.dcf_wacc       = 9.0
     if "dcf_terminal_g" not in st.session_state: st.session_state.dcf_terminal_g = 2.0
     if "dcf_net_debt"   not in st.session_state: st.session_state.dcf_net_debt   = 500
     if "dcf_shares"     not in st.session_state: st.session_state.dcf_shares     = 100
     if "dcf_horizon"    not in st.session_state: st.session_state.dcf_horizon    = 5
-    if "dcf_base_fcff"  not in st.session_state: st.session_state.dcf_base_fcff  = 200
+    if "dcf_base_fcf"   not in st.session_state: st.session_state.dcf_base_fcf   = 200
     if "dcf_growth"     not in st.session_state: st.session_state.dcf_growth     = 8.0
 
-    # ── Inputs ────────────────────────────────────────────────────────────────
-    if mode == "Simple":
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown('<p class="section-heading">Cash flows</p>', unsafe_allow_html=True)
-            base_fcff   = st.slider("Base free cash flow (€m)", 10, 2000,
-                                    st.session_state.dcf_base_fcff, 10, key="s_base_fcff")
-            growth_rate = st.slider("Near-term growth rate (%)", 0.0, 30.0,
-                                    st.session_state.dcf_growth, 0.5, key="s_growth")
-            horizon     = st.slider("Forecast horizon (years)", 3, 15,
-                                    st.session_state.dcf_horizon, 1, key="s_horizon")
-        with col2:
-            st.markdown('<p class="section-heading">Discount & terminal</p>', unsafe_allow_html=True)
-            wacc        = st.slider("WACC (%)", 3.0, 20.0,
-                                    st.session_state.dcf_wacc, 0.25, key="s_wacc")
-            terminal_g  = st.slider("Terminal growth rate (%)", 0.0, 5.0,
-                                    st.session_state.dcf_terminal_g, 0.25, key="s_tg")
-        with col3:
-            st.markdown('<p class="section-heading">Capital structure</p>', unsafe_allow_html=True)
-            net_debt    = st.slider("Net debt (€m)", 0, 5000,
-                                    st.session_state.dcf_net_debt, 50, key="s_debt")
-            shares      = st.slider("Shares outstanding (m)", 1, 500,
-                                    st.session_state.dcf_shares, 1, key="s_shares")
+    col_inputs, col_charts = st.columns([1, 2])
 
-        # Persist to session state
-        st.session_state.dcf_base_fcff  = base_fcff
-        st.session_state.dcf_growth     = growth_rate
-        st.session_state.dcf_horizon    = horizon
-        st.session_state.dcf_wacc       = wacc
-        st.session_state.dcf_terminal_g = terminal_g
-        st.session_state.dcf_net_debt   = net_debt
-        st.session_state.dcf_shares     = shares
+    with col_inputs:
+        st.subheader("Parameters")
 
-        # Build FCFFs from simple inputs
-        # Derive implied revenue / margin to seed Detailed table consistently
-        # Simple mode: treat base_fcff as NOPAT proxy (EBIT*(1-t)) with D&A=0, Capex=0, ΔNWC=0
-        fcffs = [base_fcff * (1 + growth_rate / 100) ** t for t in range(1, horizon + 1)]
+        mode = st.radio("Input mode:", ["Simple", "Detailed"], horizontal=True)
 
-    else:  # Detailed
-        col1, col2 = st.columns([3, 2])
-        with col1:
-            st.markdown('<p class="section-heading">Forecast cash flows (€m)</p>', unsafe_allow_html=True)
-            horizon = st.slider("Forecast horizon (years)", 3, 10,
-                                st.session_state.dcf_horizon, 1, key="d_horizon")
+        st.subheader("Discount & Terminal")
+        wacc = st.slider(
+            "WACC (%):", 3.0, 20.0,
+            st.session_state.dcf_wacc, 0.25,
+            key="s_wacc" if mode == "Simple" else "d_wacc",
+        )
+        terminal_g = st.slider(
+            "Terminal growth rate, g (%):", 0.0, 5.0,
+            st.session_state.dcf_terminal_g, 0.25,
+            key="s_tg" if mode == "Simple" else "d_tg",
+        )
 
-            # Seed revenue from base_fcff: assume 15% EBIT margin, 25% tax, D&A=30, Capex=40, ΔNWC=10
-            # FCFF = Revenue*0.15*0.75 + 30 - 40 - 10 = Revenue*0.1125 - 20
-            # => Revenue = (base_fcff + 20) / 0.1125
-            seed_fcff    = st.session_state.dcf_base_fcff
-            seed_growth  = st.session_state.dcf_growth
-            seed_revenue = round((seed_fcff + 20) / 0.1125)
+        st.subheader("Capital Structure")
+        net_debt = st.slider(
+            "Net debt (€m):", 0, 5000,
+            st.session_state.dcf_net_debt, 50,
+            key="s_debt" if mode == "Simple" else "d_debt",
+        )
+        shares = st.slider(
+            "Shares outstanding (m):", 1, 500,
+            st.session_state.dcf_shares, 1,
+            key="s_shares" if mode == "Simple" else "d_shares",
+        )
 
-            df_input = pd.DataFrame({
-                "Year": [f"Year {i}" for i in range(1, horizon + 1)],
-                "Revenue": [round(seed_revenue * (1 + seed_growth / 100) ** (i - 1)) for i in range(1, horizon + 1)],
-                "EBIT margin (%)": [15.0] * horizon,
-                "Tax rate (%)": [25.0] * horizon,
-                "D&A (€m)": [30.0] * horizon,
-                "Capex (€m)": [40.0] * horizon,
-                "ΔNWC (€m)": [10.0] * horizon,
-            })
+        if mode == "Simple":
+            st.subheader("Cash Flows")
+            base_fcf    = st.slider("Base FCF (€m):", 10, 2000,
+                                    st.session_state.dcf_base_fcf, 10)
+            growth_rate = st.slider("Near-term growth rate (%):", 0.0, 30.0,
+                                    st.session_state.dcf_growth, 0.5)
+            horizon     = st.slider("Forecast horizon, H (years):", 3, 15,
+                                    st.session_state.dcf_horizon, 1)
 
-            edited = st.data_editor(
-                df_input,
-                hide_index=True,
-                use_container_width=True,
-                column_config={
-                    "Year": st.column_config.TextColumn("Year", disabled=True),
-                    "Revenue": st.column_config.NumberColumn("Revenue (€m)", min_value=0, format="%.0f"),
-                    "EBIT margin (%)": st.column_config.NumberColumn("EBIT margin %", min_value=0, max_value=100, format="%.1f"),
-                    "Tax rate (%)": st.column_config.NumberColumn("Tax rate %", min_value=0, max_value=100, format="%.1f"),
-                    "D&A (€m)": st.column_config.NumberColumn("D&A (€m)", min_value=0, format="%.1f"),
-                    "Capex (€m)": st.column_config.NumberColumn("Capex (€m)", min_value=0, format="%.1f"),
-                    "ΔNWC (€m)": st.column_config.NumberColumn("ΔNWC (€m)", format="%.1f"),
-                }
+            # Persist to session state
+            st.session_state.dcf_base_fcf   = base_fcf
+            st.session_state.dcf_growth     = growth_rate
+            st.session_state.dcf_horizon    = horizon
+            st.session_state.dcf_wacc       = wacc
+            st.session_state.dcf_terminal_g = terminal_g
+            st.session_state.dcf_net_debt   = net_debt
+            st.session_state.dcf_shares     = shares
+
+            fcfs = [base_fcf * (1 + growth_rate / 100) ** t for t in range(1, horizon + 1)]
+
+        else:  # Detailed — horizon slider here, table rendered below
+            horizon = st.slider(
+                "Forecast horizon, H (years):", 3, 10,
+                st.session_state.dcf_horizon, 1, key="d_horizon",
             )
+            # Persist shared inputs
+            st.session_state.dcf_horizon    = horizon
+            st.session_state.dcf_wacc       = wacc
+            st.session_state.dcf_terminal_g = terminal_g
+            st.session_state.dcf_net_debt   = net_debt
+            st.session_state.dcf_shares     = shares
 
-            # Compute FCFF from inputs
-            fcffs = []
-            for _, row in edited.iterrows():
-                ebit  = row["Revenue"] * row["EBIT margin (%)"] / 100
-                nopat = ebit * (1 - row["Tax rate (%)"] / 100)
-                fcff  = nopat + row["D&A (€m)"] - row["Capex (€m)"] - row["ΔNWC (€m)"]
-                fcffs.append(fcff)
+    # ── Detailed table (full width, below the two columns) ────────────────────
+    if mode == "Detailed":
+        st.subheader("Forecast Cash Flows (€m)")
 
-        with col2:
-            st.markdown('<p class="section-heading">Discount & terminal</p>', unsafe_allow_html=True)
-            wacc       = st.slider("WACC (%)", 3.0, 20.0,
-                                   st.session_state.dcf_wacc, 0.25, key="d_wacc")
-            terminal_g = st.slider("Terminal growth rate (%)", 0.0, 5.0,
-                                   st.session_state.dcf_terminal_g, 0.25, key="d_tg")
-            st.markdown('<p class="section-heading">Capital structure</p>', unsafe_allow_html=True)
-            net_debt   = st.slider("Net debt (€m)", 0, 5000,
-                                   st.session_state.dcf_net_debt, 50, key="d_debt")
-            shares     = st.slider("Shares outstanding (m)", 1, 500,
-                                   st.session_state.dcf_shares, 1, key="d_shares")
+        seed_fcf     = st.session_state.dcf_base_fcf
+        seed_growth  = st.session_state.dcf_growth
+        # Seed revenue: FCF = Revenue*0.15*0.75 + 30 - 40 - 10 => Revenue=(FCF+20)/0.1125
+        seed_revenue = round((seed_fcf + 20) / 0.1125)
 
-        # Persist to session state
-        st.session_state.dcf_horizon    = horizon
-        st.session_state.dcf_wacc       = wacc
-        st.session_state.dcf_terminal_g = terminal_g
-        st.session_state.dcf_net_debt   = net_debt
-        st.session_state.dcf_shares     = shares
+        df_input = pd.DataFrame({
+            "Year":            [f"Year {i}" for i in range(1, horizon + 1)],
+            "Revenue":         [round(seed_revenue * (1 + seed_growth / 100) ** (i - 1))
+                                for i in range(1, horizon + 1)],
+            "EBIT margin (%)": [15.0] * horizon,
+            "Tax rate (%)":    [25.0] * horizon,
+            "D&A (€m)":        [30.0] * horizon,
+            "Capex (€m)":      [40.0] * horizon,
+            "ΔNWC (€m)":       [10.0] * horizon,
+        })
 
-    # ── Calculations ──────────────────────────────────────────────────────────
-    wacc_dec      = wacc / 100
-    tg_dec        = terminal_g / 100
+        edited = st.data_editor(
+            df_input,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "Year":            st.column_config.TextColumn("Year", disabled=True),
+                "Revenue":         st.column_config.NumberColumn("Revenue (€m)",    min_value=0, format="%.0f"),
+                "EBIT margin (%)": st.column_config.NumberColumn("EBIT margin %",   min_value=0, max_value=100, format="%.1f"),
+                "Tax rate (%)":    st.column_config.NumberColumn("Tax rate %",       min_value=0, max_value=100, format="%.1f"),
+                "D&A (€m)":        st.column_config.NumberColumn("D&A (€m)",         min_value=0, format="%.1f"),
+                "Capex (€m)":      st.column_config.NumberColumn("Capex (€m)",       min_value=0, format="%.1f"),
+                "ΔNWC (€m)":       st.column_config.NumberColumn("ΔNWC (€m)",        format="%.1f"),
+            },
+        )
+
+        fcfs = []
+        for _, row in edited.iterrows():
+            ebit  = row["Revenue"] * row["EBIT margin (%)"] / 100
+            nopat = ebit * (1 - row["Tax rate (%)"] / 100)
+            fcf   = nopat + row["D&A (€m)"] - row["Capex (€m)"] - row["ΔNWC (€m)"]
+            fcfs.append(fcf)
+
+    # ── Calculations ───────────────────────────────────────────────────────────
+    wacc_dec = wacc / 100
+    tg_dec   = terminal_g / 100
 
     if wacc_dec <= tg_dec:
         st.error("⚠️ WACC must be greater than the terminal growth rate for a finite valuation.")
         st.stop()
 
-    # PV of forecast FCFFs
-    pv_fcffs = [fcff / (1 + wacc_dec) ** t for t, fcff in enumerate(fcffs, 1)]
-    pv_forecast = sum(pv_fcffs)
+    pv_fcfs     = [fcf / (1 + wacc_dec) ** t for t, fcf in enumerate(fcfs, 1)]
+    pv_forecast = sum(pv_fcfs)
 
-    # Terminal value (Gordon Growth)
-    terminal_fcff = fcffs[-1] * (1 + tg_dec)
-    terminal_value = terminal_fcff / (wacc_dec - tg_dec)
-    pv_terminal   = terminal_value / (1 + wacc_dec) ** horizon
+    # Terminal value: TV = FCF_{H+1} / (WACC - g)
+    terminal_fcf   = fcfs[-1] * (1 + tg_dec)
+    terminal_value = terminal_fcf / (wacc_dec - tg_dec)
+    pv_terminal    = terminal_value / (1 + wacc_dec) ** horizon
 
     enterprise_value = pv_forecast + pv_terminal
     equity_value     = enterprise_value - net_debt
     price_per_share  = equity_value / shares if shares > 0 else 0
+    tv_pct           = pv_terminal / enterprise_value * 100 if enterprise_value > 0 else 0
 
-    tv_pct = pv_terminal / enterprise_value * 100 if enterprise_value > 0 else 0
+    # ── Summary metrics ────────────────────────────────────────────────────────
+    with col_inputs:
+        st.subheader("Valuation Summary")
+        st.metric("Enterprise value", fmt_currency(enterprise_value))
+        st.metric("Equity value",     fmt_currency(equity_value))
+        st.metric("Price per share",  f"€{price_per_share:,.2f}")
+        st.metric("Terminal value %", f"{tv_pct:.1f}%")
 
-    # ── Metric cards ──────────────────────────────────────────────────────────
-    st.markdown('<hr class="light">', unsafe_allow_html=True)
-    st.markdown(f"""
-    <div class="metric-row">
-      <div class="metric-card highlight">
-        <div class="metric-label">Equity value</div>
-        <div class="metric-value">{fmt_currency(equity_value)}</div>
-        <div class="metric-sub">Enterprise value − net debt</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Enterprise value</div>
-        <div class="metric-value">{fmt_currency(enterprise_value)}</div>
-        <div class="metric-sub">PV forecast + PV terminal</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Price per share</div>
-        <div class="metric-value">€{price_per_share:,.2f}</div>
-        <div class="metric-sub">Equity value ÷ shares</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Terminal value %</div>
-        <div class="metric-value">{tv_pct:.1f}%</div>
-        <div class="metric-sub">Share of enterprise value</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # ── Charts ─────────────────────────────────────────────────────────────────
+    with col_charts:
+        st.subheader("Value Breakdown")
 
-    # ── Charts ────────────────────────────────────────────────────────────────
-    chart_col1, chart_col2 = st.columns(2)
+        years_labels = [f"Yr {i}" for i in range(1, horizon + 1)] + ["Terminal (PV)"]
+        bar_values   = pv_fcfs + [pv_terminal]
+        bar_colors   = ["#1E3A8A"] * horizon + ["#2ca02c"]
 
-    # Chart 1 — Value breakdown waterfall
-    with chart_col1:
-        st.markdown('<p class="section-heading">Value breakdown</p>', unsafe_allow_html=True)
-
-        years = [f"Yr {i}" for i in range(1, horizon + 1)]
-        bar_colors = ["#185FA5"] * horizon + ["#3B6D11", "#e8e8e4", "#534AB7"]
-
-        fig_wf = go.Figure()
-        # Individual FCFFs
-        fig_wf.add_trace(go.Bar(
-            name="PV of forecast FCFFs",
-            x=years,
-            y=pv_fcffs,
-            marker_color="#185FA5",
-            text=[f"€{v:,.0f}m" for v in pv_fcffs],
+        fig_bar = go.Figure()
+        fig_bar.add_trace(go.Bar(
+            x=years_labels,
+            y=bar_values,
+            marker_color=bar_colors,
+            text=[f"€{v:,.0f}m" for v in bar_values],
             textposition="outside",
-            textfont_size=10,
+            textfont=dict(size=14),
         ))
-        fig_wf.add_trace(go.Bar(
-            name="PV of terminal value",
-            x=["Terminal"],
-            y=[pv_terminal],
-            marker_color="#3B6D11",
-            text=[f"€{pv_terminal:,.0f}m"],
-            textposition="outside",
-            textfont_size=10,
-        ))
-        fig_wf.update_layout(
-            **PLOTLY_LAYOUT,
-            barmode="group",
+        fig_bar.update_layout(
+            title=dict(text="PV of FCFs and Terminal Value", font=dict(size=22)),
             yaxis_title="€m",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-            height=320,
+            height=380,
+            font=dict(size=16),
+            margin=dict(l=60, r=40, t=60, b=40),
+            showlegend=False,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
         )
-        fig_wf.update_xaxes(showgrid=False)
-        fig_wf.update_yaxes(showgrid=True, gridcolor="#e8e8e4")
-        st.plotly_chart(fig_wf, use_container_width=True)
+        fig_bar.update_xaxes(showgrid=False, tickfont=dict(size=14))
+        fig_bar.update_yaxes(showgrid=True, gridcolor="#e8e8e4", tickfont=dict(size=14))
+        st.plotly_chart(fig_bar, use_container_width=True)
 
-    # Chart 2 — Pie: forecast vs terminal
-    with chart_col2:
-        st.markdown('<p class="section-heading">Forecast vs terminal value</p>', unsafe_allow_html=True)
         fig_pie = go.Figure(go.Pie(
-            labels=["PV of forecast FCFFs", "PV of terminal value"],
+            labels=["PV of forecast FCFs", "PV of terminal value"],
             values=[pv_forecast, pv_terminal],
             hole=0.55,
-            marker_colors=["#185FA5", "#3B6D11"],
+            marker_colors=["#1E3A8A", "#2ca02c"],
             textinfo="label+percent",
-            textfont_size=12,
+            textfont=dict(size=14),
             hovertemplate="%{label}<br>€%{value:,.0f}m<extra></extra>",
         ))
         fig_pie.update_layout(
-            **PLOTLY_LAYOUT,
+            title=dict(text="Forecast vs Terminal Value", font=dict(size=22)),
+            height=380,
+            font=dict(size=16),
+            margin=dict(l=40, r=40, t=60, b=40),
             showlegend=False,
-            height=320,
+            paper_bgcolor="rgba(0,0,0,0)",
             annotations=[dict(
                 text=f"EV<br><b>{fmt_currency(enterprise_value)}</b>",
-                x=0.5, y=0.5, font_size=13, showarrow=False,
-                font_color="#1a1a18",
-            )]
+                x=0.5, y=0.5, font=dict(size=15), showarrow=False,
+            )],
         )
         st.plotly_chart(fig_pie, use_container_width=True)
 
-    # ── Sensitivity table ─────────────────────────────────────────────────────
-    st.markdown('<p class="section-heading">Sensitivity analysis — Equity value per share (€)</p>', unsafe_allow_html=True)
-    st.markdown('<div class="info-box">Each cell shows the implied share price for a given combination of WACC and terminal growth rate. Your current assumptions are highlighted.</div>', unsafe_allow_html=True)
+    # ── Sensitivity table ──────────────────────────────────────────────────────
+    st.subheader("Sensitivity Analysis — Equity Value per Share (€)")
+    st.markdown("Each cell shows the implied share price for a given combination of WACC and terminal "
+                "growth rate g. Your current assumptions are **highlighted in blue**.")
 
     wacc_range = np.arange(max(wacc - 2.5, tg_dec * 100 + 0.5), wacc + 3.0, 0.5)
     tg_range   = np.arange(max(terminal_g - 1.5, 0.0), terminal_g + 2.0, 0.5)
@@ -450,8 +258,8 @@ with tab_dcf:
             if w / 100 <= tg / 100:
                 row.append(np.nan)
                 continue
-            pv_f = sum([fcffs[t] / (1 + w / 100) ** (t + 1) for t in range(horizon)])
-            tv   = fcffs[-1] * (1 + tg / 100) / (w / 100 - tg / 100)
+            pv_f = sum([fcfs[t] / (1 + w / 100) ** (t + 1) for t in range(horizon)])
+            tv   = fcfs[-1] * (1 + tg / 100) / (w / 100 - tg / 100)
             pv_t = tv / (1 + w / 100) ** horizon
             ev   = pv_f + pv_t
             eq   = ev - net_debt
@@ -464,19 +272,13 @@ with tab_dcf:
         columns=[f"WACC = {w:.1f}%" for w in wacc_range],
     )
 
-    # Highlight nearest cell to current assumptions
-    def highlight_cell(val):
-        return ""
-
     def style_sens(df):
         styles = pd.DataFrame("", index=df.index, columns=df.columns)
-        # Find closest row/col
-        closest_row = min(range(len(tg_range)), key=lambda i: abs(tg_range[i] - terminal_g))
+        closest_row = min(range(len(tg_range)),  key=lambda i: abs(tg_range[i]  - terminal_g))
         closest_col = min(range(len(wacc_range)), key=lambda i: abs(wacc_range[i] - wacc))
-        styles.iloc[closest_row, closest_col] = "background-color: #185FA5; color: white; font-weight: 600;"
+        styles.iloc[closest_row, closest_col] = "background-color: #1E3A8A; color: white; font-weight: 600;"
         return styles
 
-    # Manual blue gradient without matplotlib
     vmin = sens_df.min().min()
     vmax = sens_df.max().max()
 
@@ -484,9 +286,9 @@ with tab_dcf:
         if np.isnan(val):
             return "background-color: #f5f5f3; color: #9a9a96;"
         t = (val - vmin) / (vmax - vmin) if vmax > vmin else 0.5
-        r = int(232 - t * (232 - 24))
-        g = int(241 - t * (241 - 95))
-        b = int(251 - t * (251 - 165))
+        r = int(232 - t * (232 - 30))
+        g = int(241 - t * (241 - 58))
+        b = int(251 - t * (251 - 138))
         text = "white" if t > 0.6 else "#1a1a18"
         return f"background-color: rgb({r},{g},{b}); color: {text};"
 
@@ -495,156 +297,145 @@ with tab_dcf:
         .apply(style_sens, axis=None)
         .format(lambda v: f"€{v:,.1f}" if not np.isnan(v) else "—")
         .map(blue_gradient)
-        .set_properties(**{"font-family": "DM Mono, monospace", "font-size": "0.8rem"})
+        .set_properties(**{"font-size": "0.85rem"})
     )
     st.dataframe(styled, use_container_width=True)
 
-    st.markdown('<hr class="light">', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="info-box">
-    <b>How to read this:</b> The DCF value equals the present value of all future free cash flows to the firm (FCFF),
-    discounted at the WACC. The terminal value captures all cash flows beyond the forecast horizon using the Gordon Growth Model:
-    TV = FCFF<sub>n+1</sub> / (WACC − g). Subtracting net debt from enterprise value gives equity value.
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        "**How to read this:** Enterprise value = PV of forecast FCFs + PV of terminal value, "
+        "where TV = FCF_{H+1} / (WACC − g). Subtracting net debt gives equity value; "
+        "dividing by shares outstanding gives the implied share price."
+    )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
 #  TAB 2 — COMPARABLE MULTIPLES
-# ─────────────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
 with tab_mult:
 
-    st.markdown('<div class="info-box">Enter your target company\'s financials and the observed trading multiples of comparable companies. The app estimates implied enterprise and equity values under each multiple.</div>', unsafe_allow_html=True)
+    st.markdown("Enter your target company's financials and the observed trading multiples of "
+                "comparable companies. The app estimates implied enterprise and equity values under each multiple.")
 
-    col1, col2 = st.columns([2, 3])
+    col1, col2 = st.columns([1, 2])
 
     with col1:
-        st.markdown('<p class="section-heading">Target company financials</p>', unsafe_allow_html=True)
-        t_ebitda  = st.number_input("EBITDA (€m)", min_value=1.0, value=150.0, step=5.0)
-        t_ebit    = st.number_input("EBIT (€m)", min_value=1.0, value=110.0, step=5.0)
-        t_earnings= st.number_input("Net earnings (€m)", min_value=1.0, value=75.0, step=5.0)
-        t_revenue = st.number_input("Revenue (€m)", min_value=1.0, value=800.0, step=10.0)
-        t_debt    = st.number_input("Net debt (€m)", min_value=0.0, value=200.0, step=10.0)
-        t_shares  = st.number_input("Shares outstanding (m)", min_value=1.0, value=80.0, step=1.0)
+        st.subheader("Target Company Financials")
+        t_ebitda   = st.number_input("EBITDA (€m):",           min_value=1.0, value=150.0, step=5.0)
+        t_ebit     = st.number_input("EBIT (€m):",             min_value=1.0, value=110.0, step=5.0)
+        t_earnings = st.number_input("Net earnings (€m):",     min_value=1.0, value=75.0,  step=5.0)
+        t_revenue  = st.number_input("Revenue (€m):",          min_value=1.0, value=800.0, step=10.0)
+        t_debt     = st.number_input("Net debt (€m):",         min_value=0.0, value=200.0, step=10.0)
+        t_shares   = st.number_input("Shares outstanding (m):", min_value=1.0, value=80.0,  step=1.0)
 
-        st.markdown('<p class="section-heading">Comparable company multiples</p>', unsafe_allow_html=True)
-        m_ev_ebitda = st.slider("EV / EBITDA (×)", 3.0, 30.0, 10.0, 0.5)
-        m_ev_ebit   = st.slider("EV / EBIT (×)", 3.0, 40.0, 14.0, 0.5)
-        m_pe        = st.slider("P / E (×)", 5.0, 50.0, 18.0, 0.5)
-        m_ev_rev    = st.slider("EV / Revenue (×)", 0.5, 10.0, 2.0, 0.1)
+        st.subheader("Comparable Company Multiples")
+        m_ev_ebitda = st.slider("EV / EBITDA (×):", 3.0, 30.0, 10.0, 0.5)
+        m_ev_ebit   = st.slider("EV / EBIT (×):",   3.0, 40.0, 14.0, 0.5)
+        m_pe        = st.slider("P / E (×):",        5.0, 50.0, 18.0, 0.5)
+        m_ev_rev    = st.slider("EV / Revenue (×):", 0.5, 10.0,  2.0, 0.1)
 
     with col2:
-        # Implied values
         results = {
             "EV/EBITDA": {
                 "multiple": f"{m_ev_ebitda:.1f}×",
-                "metric": f"€{t_ebitda:,.0f}m EBITDA",
-                "ev": t_ebitda * m_ev_ebitda,
-                "eq": t_ebitda * m_ev_ebitda - t_debt,
-                "price": (t_ebitda * m_ev_ebitda - t_debt) / t_shares,
+                "metric":   f"€{t_ebitda:,.0f}m EBITDA",
+                "ev":       t_ebitda * m_ev_ebitda,
+                "eq":       t_ebitda * m_ev_ebitda - t_debt,
+                "price":    (t_ebitda * m_ev_ebitda - t_debt) / t_shares,
             },
             "EV/EBIT": {
                 "multiple": f"{m_ev_ebit:.1f}×",
-                "metric": f"€{t_ebit:,.0f}m EBIT",
-                "ev": t_ebit * m_ev_ebit,
-                "eq": t_ebit * m_ev_ebit - t_debt,
-                "price": (t_ebit * m_ev_ebit - t_debt) / t_shares,
+                "metric":   f"€{t_ebit:,.0f}m EBIT",
+                "ev":       t_ebit * m_ev_ebit,
+                "eq":       t_ebit * m_ev_ebit - t_debt,
+                "price":    (t_ebit * m_ev_ebit - t_debt) / t_shares,
             },
             "P/E": {
                 "multiple": f"{m_pe:.1f}×",
-                "metric": f"€{t_earnings:,.0f}m earnings",
-                "ev": t_earnings * m_pe + t_debt,
-                "eq": t_earnings * m_pe,
-                "price": t_earnings * m_pe / t_shares,
+                "metric":   f"€{t_earnings:,.0f}m earnings",
+                "ev":       t_earnings * m_pe + t_debt,
+                "eq":       t_earnings * m_pe,
+                "price":    t_earnings * m_pe / t_shares,
             },
             "EV/Revenue": {
                 "multiple": f"{m_ev_rev:.1f}×",
-                "metric": f"€{t_revenue:,.0f}m revenue",
-                "ev": t_revenue * m_ev_rev,
-                "eq": t_revenue * m_ev_rev - t_debt,
-                "price": (t_revenue * m_ev_rev - t_debt) / t_shares,
+                "metric":   f"€{t_revenue:,.0f}m revenue",
+                "ev":       t_revenue * m_ev_rev,
+                "eq":       t_revenue * m_ev_rev - t_debt,
+                "price":    (t_revenue * m_ev_rev - t_debt) / t_shares,
             },
         }
 
-        # Summary metrics
         prices = [v["price"] for v in results.values()]
-        evs    = [v["ev"] for v in results.values()]
+        evs    = [v["ev"]    for v in results.values()]
 
-        st.markdown('<p class="section-heading">Implied valuation range</p>', unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="metric-row">
-          <div class="metric-card highlight">
-            <div class="metric-label">Median share price</div>
-            <div class="metric-value">€{np.median(prices):,.2f}</div>
-            <div class="metric-sub">Across all multiples</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-label">Price range</div>
-            <div class="metric-value">€{min(prices):,.1f}–{max(prices):,.1f}</div>
-            <div class="metric-sub">Min to max</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-label">Median EV</div>
-            <div class="metric-value">{fmt_currency(np.median(evs))}</div>
-            <div class="metric-sub">Across all multiples</div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.subheader("Valuation Summary")
+        m_col1, m_col2, m_col3 = st.columns(3)
+        with m_col1:
+            st.metric("Median share price", f"€{np.median(prices):,.2f}")
+        with m_col2:
+            st.metric("Price range", f"€{min(prices):,.1f} – €{max(prices):,.1f}")
+        with m_col3:
+            st.metric("Median EV", fmt_currency(np.median(evs)))
 
-        # Chart — implied share prices
-        st.markdown('<p class="section-heading">Implied share price by multiple</p>', unsafe_allow_html=True)
-
-        methods = list(results.keys())
+        st.subheader("Implied Share Price by Multiple")
+        methods        = list(results.keys())
         implied_prices = [results[m]["price"] for m in methods]
-        colors = ["#185FA5", "#3B6D11", "#534AB7", "#854F0B"]
+        bar_colors_m   = ["#1E3A8A", "#2ca02c", "#9467bd", "#d62728"]
 
-        fig_bar = go.Figure()
-        fig_bar.add_trace(go.Bar(
+        fig_mult = go.Figure()
+        fig_mult.add_trace(go.Bar(
             x=methods,
             y=implied_prices,
-            marker_color=colors,
+            marker_color=bar_colors_m,
             text=[f"€{p:,.2f}" for p in implied_prices],
             textposition="outside",
-            textfont_size=12,
+            textfont=dict(size=14),
             width=0.5,
         ))
-        # Median line
-        fig_bar.add_hline(
+        fig_mult.add_hline(
             y=np.median(implied_prices),
             line_dash="dot",
-            line_color="#9a9a96",
+            line_color="#888",
             annotation_text=f"Median: €{np.median(implied_prices):,.2f}",
             annotation_position="top right",
-            annotation_font_size=11,
+            annotation_font_size=13,
         )
-        fig_bar.update_layout(
-            **PLOTLY_LAYOUT,
+        fig_mult.update_layout(
+            title=dict(text="Implied Share Price by Multiple", font=dict(size=22)),
             yaxis_title="Implied share price (€)",
+            height=380,
+            font=dict(size=16),
+            margin=dict(l=60, r=40, t=60, b=40),
             showlegend=False,
-            height=300,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
         )
-        fig_bar.update_xaxes(showgrid=False)
-        fig_bar.update_yaxes(showgrid=True, gridcolor="#e8e8e4")
-        st.plotly_chart(fig_bar, use_container_width=True)
+        fig_mult.update_xaxes(showgrid=False, tickfont=dict(size=14))
+        fig_mult.update_yaxes(showgrid=True, gridcolor="#e8e8e4", tickfont=dict(size=14))
+        st.plotly_chart(fig_mult, use_container_width=True)
 
-        # Detail table
-        st.markdown('<p class="section-heading">Detailed results</p>', unsafe_allow_html=True)
+        st.subheader("Detailed Results")
         detail_df = pd.DataFrame([{
-            "Method": m,
-            "Multiple applied": results[m]["multiple"],
-            "Based on": results[m]["metric"],
-            "Implied EV (€m)": f"€{results[m]['ev']:,.0f}m",
+            "Method":              m,
+            "Multiple applied":    results[m]["multiple"],
+            "Based on":            results[m]["metric"],
+            "Implied EV (€m)":     f"€{results[m]['ev']:,.0f}m",
             "Implied equity (€m)": f"€{results[m]['eq']:,.0f}m",
-            "Implied price (€)": f"€{results[m]['price']:,.2f}",
+            "Implied price (€)":   f"€{results[m]['price']:,.2f}",
         } for m in methods])
-
         st.dataframe(detail_df, hide_index=True, use_container_width=True)
 
-        st.markdown('<hr class="light">', unsafe_allow_html=True)
-        st.markdown("""
-        <div class="info-box">
-        <b>How to read this:</b> Each multiple is applied to the target's corresponding financial metric to derive an implied
-        enterprise value (EV). Subtracting net debt gives implied equity value; dividing by shares outstanding gives the
-        implied share price. The median across methods provides a central estimate; the range reflects valuation uncertainty.
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            "**How to read this:** Each multiple is applied to the target's corresponding financial "
+            "metric to derive an implied enterprise value. Subtracting net debt gives implied equity "
+            "value; dividing by shares outstanding gives the implied share price. The median across "
+            "methods provides a central estimate; the range reflects valuation uncertainty."
+        )
+
+# ── Footer ─────────────────────────────────────────────────────────────────────
+st.markdown(
+    '<div style="text-align:center; color:#888; font-size:0.8rem; margin-top:2rem;">'
+    'Business Valuation | Developed by Prof. Marc Goergen with the help of Claude'
+    '</div>',
+    unsafe_allow_html=True,
+)
