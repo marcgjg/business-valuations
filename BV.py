@@ -33,10 +33,10 @@ with st.expander("ℹ️ About this tool", expanded=False):
 
     **Key formulas:**
     - FCF = NOPAT + D&A − Capex − ΔNWC, where NOPAT = EBIT × (1 − tax rate)
-    - Terminal value (Gordon Growth): TV = FCF_{H+1} / (WACC − g)
+    - Terminal value (Gordon Growth): TV = FCF<sub>H+1</sub> / (WACC − g)
     - Enterprise value = PV of forecast FCFs + PV of terminal value
     - Equity value = Enterprise value − Net debt
-    """)
+    """, unsafe_allow_html=True)
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
 tab_dcf, tab_mult = st.tabs(["📈  DCF Valuation", "🔢  Comparable Multiples"])
@@ -246,7 +246,7 @@ with tab_dcf:
     # ── Sensitivity table ──────────────────────────────────────────────────────
     st.subheader("Sensitivity Analysis — Equity Value per Share (€)")
     st.markdown("Each cell shows the implied share price for a given combination of WACC and terminal "
-                "growth rate g. Your current assumptions are **highlighted in blue**.")
+                "growth rate g. Your current assumptions are **highlighted in blue**.", unsafe_allow_html=True)
 
     wacc_range = np.arange(max(wacc - 2.5, tg_dec * 100 + 0.5), wacc + 3.0, 0.5)
     tg_range   = np.arange(max(terminal_g - 1.5, 0.0), terminal_g + 2.0, 0.5)
@@ -303,8 +303,9 @@ with tab_dcf:
 
     st.markdown(
         "**How to read this:** Enterprise value = PV of forecast FCFs + PV of terminal value, "
-        "where TV = FCF_{H+1} / (WACC − g). Subtracting net debt gives equity value; "
-        "dividing by shares outstanding gives the implied share price."
+        "where TV = FCF<sub>H+1</sub> / (WACC − g). Subtracting net debt gives equity value; "
+        "dividing by shares outstanding gives the implied share price.",
+        unsafe_allow_html=True,
     )
 
 
