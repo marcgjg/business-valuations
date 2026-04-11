@@ -272,31 +272,34 @@ with tab_dcf:
         columns=[f"WACC = {w:.1f}%" for w in wacc_range],
     )
 
-    def style_sens(df):
-        styles = pd.DataFrame("", index=df.index, columns=df.columns)
-        closest_row = min(range(len(tg_range)),  key=lambda i: abs(tg_range[i]  - terminal_g))
-        closest_col = min(range(len(wacc_range)), key=lambda i: abs(wacc_range[i] - wacc))
-        styles.iloc[closest_row, closest_col] = "background-color: #d62728; color: white; font-weight: 600;"
-        return styles
-
     vmin = sens_df.min().min()
     vmax = sens_df.max().max()
+    closest_row = min(range(len(tg_range)),   key=lambda i: abs(tg_range[i]  - terminal_g))
+    closest_col = min(range(len(wacc_range)), key=lambda i: abs(wacc_range[i] - wacc))
 
-    def blue_gradient(val):
-        if np.isnan(val):
-            return "background-color: #f5f5f3; color: #9a9a96;"
-        t = (val - vmin) / (vmax - vmin) if vmax > vmin else 0.5
-        r = int(232 - t * (232 - 30))
-        g = int(241 - t * (241 - 58))
-        b = int(251 - t * (251 - 138))
-        text = "white" if t > 0.6 else "#1a1a18"
-        return f"background-color: rgb({r},{g},{b}); color: {text};"
+    def combined_style(df):
+        styles = pd.DataFrame("", index=df.index, columns=df.columns)
+        for i in range(len(df.index)):
+            for j in range(len(df.columns)):
+                if i == closest_row and j == closest_col:
+                    styles.iloc[i, j] = "background-color: #d62728; color: white; font-weight: 600;"
+                else:
+                    val = df.iloc[i, j]
+                    if np.isnan(val):
+                        styles.iloc[i, j] = "background-color: #f5f5f3; color: #9a9a96;"
+                    else:
+                        t = (val - vmin) / (vmax - vmin) if vmax > vmin else 0.5
+                        r = int(232 - t * (232 - 30))
+                        g = int(241 - t * (241 - 58))
+                        b = int(251 - t * (251 - 138))
+                        text = "white" if t > 0.6 else "#1a1a18"
+                        styles.iloc[i, j] = f"background-color: rgb({r},{g},{b}); color: {text};"
+        return styles
 
     styled = (
         sens_df.style
-        .apply(style_sens, axis=None)
+        .apply(combined_style, axis=None)
         .format(lambda v: f"€{v:,.1f}" if not np.isnan(v) else "—")
-        .map(blue_gradient)
         .set_properties(**{"font-size": "0.85rem"})
     )
     st.dataframe(styled, use_container_width=True)
