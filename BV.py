@@ -494,7 +494,7 @@ with tab_dcf:
         sens_df.style
         .apply(style_sens, axis=None)
         .format(lambda v: f"€{v:,.1f}" if not np.isnan(v) else "—")
-        .applymap(blue_gradient)
+        .map(blue_gradient)
         .set_properties(**{"font-family": "DM Mono, monospace", "font-size": "0.8rem"})
     )
     st.dataframe(styled, use_container_width=True)
