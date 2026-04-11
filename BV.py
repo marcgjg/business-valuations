@@ -122,15 +122,19 @@ with tab_dcf:
     if mode == "Detailed":
         st.subheader("Forecast Cash Flows (€m)")
 
-        seed_fcf     = st.session_state.dcf_base_fcf
-        seed_growth  = st.session_state.dcf_growth
-        # Seed revenue: FCF = Revenue*0.15*0.75 + 30 - 40 - 10 => Revenue=(FCF+20)/0.1125
-        seed_revenue = round((seed_fcf + 20) / 0.1125)
+        seed_base_fcf  = st.session_state.dcf_base_fcf
+        seed_growth    = st.session_state.dcf_growth
+        # Derive revenue for each year so that FCF matches simple mode exactly.
+        # FCF = Revenue * EBIT_margin * (1 - tax) + D&A - Capex - ΔNWC
+        # => Revenue = (FCF - D&A + Capex + ΔNWC) / (EBIT_margin * (1 - tax))
+        # Using defaults: EBIT margin=15%, tax=25%, D&A=30, Capex=40, ΔNWC=10
+        # => Revenue = (FCF + 20) / 0.1125
+        simple_fcfs   = [seed_base_fcf * (1 + seed_growth / 100) ** t for t in range(1, horizon + 1)]
+        seed_revenues = [round((fcf + 20) / 0.1125) for fcf in simple_fcfs]
 
         df_input = pd.DataFrame({
             "Year":            [f"Year {i}" for i in range(1, horizon + 1)],
-            "Revenue":         [round(seed_revenue * (1 + seed_growth / 100) ** (i - 1))
-                                for i in range(1, horizon + 1)],
+            "Revenue":         seed_revenues,
             "EBIT margin (%)": [15.0] * horizon,
             "Tax rate (%)":    [25.0] * horizon,
             "D&A (€m)":        [30.0] * horizon,
