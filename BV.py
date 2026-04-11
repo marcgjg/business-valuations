@@ -138,16 +138,17 @@ with tab_dcf:
     nwc_vals = []
     dnwc_vals= []
     nopat_vals = []
-    prev_nwc = rev_year1 * edited.iloc[0]["NWC (% rev)"] / 100
-    for i, row in edited.iterrows():
-        rev    = revenues[i]
-        ebit   = rev * row["EBIT margin (%)"] / 100
-        nopat  = ebit * (1 - row["Tax rate (%)"] / 100)
-        da     = rev * row["D&A (% rev)"]    / 100
-        capex  = rev * row["Capex (% rev)"]  / 100
-        nwc    = rev * row["NWC (% rev)"]    / 100
-        d_nwc  = nwc - prev_nwc
-        fcf    = nopat + da - capex - d_nwc
+    prev_nwc = rev_year0 * edited.iloc[0]["NWC (% rev)"] / 100
+    for i in range(1, horizon + 1):
+        row   = edited.iloc[i]
+        rev   = revenues[i - 1]
+        ebit  = rev * row["EBIT margin (%)"] / 100
+        nopat = ebit * (1 - row["Tax rate (%)"] / 100)
+        da    = rev * row["D&A (% rev)"]    / 100
+        capex = rev * row["Capex (% rev)"]  / 100
+        nwc   = rev * row["NWC (% rev)"]    / 100
+        d_nwc = nwc - prev_nwc
+        fcf   = nopat + da - capex - d_nwc
         fcfs.append(fcf)
         da_vals.append(da)
         cap_vals.append(capex)
